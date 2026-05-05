@@ -1,0 +1,6 @@
+{
+  "name": "perf-dashboard-traffic-gen",
+  "version": "1.0.0",
+  "main": "generator.js",
+  "scripts": { "start": "node generator.js" }
+}

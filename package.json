@@ -1,0 +1,16 @@
+{
+  "name": "perf-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run backend:1\" \"npm run backend:2\" \"npm run backend:3\" \"npm run proxy\" \"npm run frontend\"",
+    "backend:1": "cd backend && PORT=3001 node server.js",
+    "backend:2": "cd backend && PORT=3002 node server.js",
+    "backend:3": "cd backend && PORT=3003 node server.js",
+    "proxy": "cd proxy && node server.js",
+    "frontend": "cd frontend && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
