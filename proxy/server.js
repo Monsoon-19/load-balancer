@@ -39,9 +39,9 @@ function loadBackends() {
     catch(e) { console.error("[proxy] config.json error:", e.message); }
   }
   return [
-    { id:"backend-3001", url:"http://localhost:3001", port:3001, weight:1 },
-    { id:"backend-3002", url:"http://localhost:3002", port:3002, weight:1 },
-    { id:"backend-3003", url:"http://localhost:3003", port:3003, weight:1 },
+    { id:"backend-3001", url:"https://load-backend-1-w5i2.onrender.com/", port:3001, weight:1 },
+    { id:"backend-3002", url:"https://load-backend-2-6fn8.onrender.com/", port:3002, weight:1 },
+    { id:"backend-3003", url:"https://load-backend-3.onrender.com/", port:3003, weight:1 },
   ];
 }
 
@@ -148,9 +148,6 @@ async function checkHealth(s) {
 setInterval(()=>Object.values(state).forEach(checkHealth), HEALTH_INTERVAL_MS);
 Object.values(state).forEach(checkHealth);
 
-// ── Snapshot writer ───────────────────────────────────────────────────────
-function writeSnap() {}
-
 
 // ── Rate limiter ──────────────────────────────────────────────────────────
 const rlMap = new Map();
@@ -183,7 +180,6 @@ app.all("/proxy/task", (req,res,next)=>{
     const entry={ts:Date.now(),serverId:s.id,latency_ms:lat,status:r.status,algorithm:currentAlgorithm};
     requestLog.push(entry);
     if(requestLog.length>REQUEST_LOG_MAX) requestLog.shift();
-    try{ stmtLog.run(entry.ts,entry.serverId,entry.latency_ms,entry.status,entry.algorithm); stmtPrune.run(); }catch{}
     res.status(r.status).json({...r.body,_proxy:{algorithm:currentAlgorithm,selectedServer:s.id,proxyLatency:lat}});
   } catch(e) {
     s.errorCount++; onFailure(s);
