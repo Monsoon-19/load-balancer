@@ -1,27 +1,41 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #0a0c0f; --bg2: #111418; --bg3: #181c22;
-  --border: #1e242e; --border2: #2a3140;
-  --text: #c8d4e0; --text2: #6b7f96; --text3: #3d4f62;
-  --accent: #00d4ff; --accent2: #0099bb;
-  --green: #00e5a0; --green2: #009966;
-  --red: #ff4455; --red2: #cc2233;
-  --amber: #ffb800; --purple: #a78bfa;
-  --mono: "IBM Plex Mono", monospace;
-  --sans: "IBM Plex Sans", sans-serif;
-  --radius: 4px; --radius2: 8px;
+/* index.css — complete styles for PerfDash v2 */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0a0c0f;--bg2:#111418;--bg3:#181c22;
+  --border:#1e242e;--border2:#2a3140;
+  --text:#c8d4e0;--text2:#6b7f96;--text3:#3d4f62;
+  --accent:#00d4ff;--accent2:#0099bb;
+  --green:#00e5a0;--green2:#009966;
+  --red:#ff4455;--red2:#cc2233;
+  --amber:#ffb800;--amber2:#cc8800;
+  --purple:#a78bfa;
+  --mono:"IBM Plex Mono",monospace;
+  --sans:"IBM Plex Sans",sans-serif;
+  --radius:4px;--radius2:8px;
 }
-html { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; }
-body { min-height: 100vh; }
-button { cursor: pointer; font-family: var(--mono); border: none; outline: none; transition: all 0.15s; }
-button:active { transform: scale(0.97); }
-select { font-family: var(--mono); background: var(--bg3); color: var(--text); border: 1px solid var(--border2); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; cursor: pointer; outline: none; }
-input[type="range"] { accent-color: var(--accent); cursor: pointer; width: 100%; }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg2); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
-@keyframes blink { 0%,100% { opacity:1; } 49% { opacity:1; } 50% { opacity:0; } }
-.blink { animation: blink 1s step-end infinite; }
-.fade-in { animation: fadeIn 0.3s ease; }
+
+html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;scroll-behavior:smooth}
+body{min-height:100vh}
+
+/* Responsive dashboard layout — sidebar stacks on narrow screens */
+.dashboard-layout{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
+@media(min-width:900px){.dashboard-layout{grid-template-columns:300px 1fr}}
+
+button{cursor:pointer;font-family:var(--mono);border:none;outline:none;transition:all 0.15s}
+button:active{transform:scale(0.97)}
+select{font-family:var(--mono);background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:var(--radius);padding:6px 10px;font-size:13px;cursor:pointer;outline:none}
+select:focus{border-color:var(--accent)}
+input[type="range"]{accent-color:var(--accent);cursor:pointer;width:100%}
+
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes blink{0%,100%{opacity:1}49%{opacity:1}50%{opacity:0}}
+@keyframes shimmer{0%,100%{opacity:0.4}50%{opacity:0.8}}
+
+.blink{animation:blink 1s step-end infinite}
+.fade-in{animation:fadeIn 0.3s ease}

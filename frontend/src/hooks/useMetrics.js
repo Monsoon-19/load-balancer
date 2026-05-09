@@ -1,22 +1,48 @@
-// src/hooks/useMetrics.js
+// frontend/src/hooks/useMetrics.js — v2
+// Polls /proxy/metrics every 800ms and /proxy/log every 2s.
+// Persists chart history to localStorage (5-min TTL).
+// Drives in-browser traffic generator.
+
 import { useState, useEffect, useRef, useCallback } from "react";
- 
-const PROXY = "";
-const POLL_INTERVAL = 800;
-const HISTORY_MAX = 120;
- 
-function initHistory() { return { labels: [], p95: [], p99: [], rps: [], servers: {} }; }
- 
+
+const PROXY         = import.meta.env.VITE_PROXY_URL || "";
+const POLL_MS       = 800;
+const HISTORY_MAX   = 120;
+const STORAGE_KEY   = "perfdash_history_v2";
+const STORAGE_TTL   = 5 * 60 * 1000;
+
+function initHistory() {
+  return { labels:[], p95:[], p99:[], rps:[], servers:{} };
+}
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return initHistory();
+    const { history, savedAt } = JSON.parse(raw);
+    if (Date.now() - savedAt > STORAGE_TTL) return initHistory();
+    return history;
+  } catch { return initHistory(); }
+}
+
+function saveHistory(h) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ history:h, savedAt:Date.now() })); }
+  catch {}
+}
+
 export function useMetrics() {
-  const [metrics, setMetrics] = useState(null);
-  const [history, setHistory] = useState(initHistory);
-  const [error, setError] = useState(null);
-  const [isTrafficRunning, setIsTrafficRunning] = useState(false);
-  const [trafficConfig, setTrafficConfig] = useState({ rate: 20, complexity: 50, failRate: 0 });
-  const trafficRef = useRef(null);
+  const [metrics, setMetrics]           = useState(null);
+  const [history, setHistory]           = useState(loadHistory);
+  const [error, setError]               = useState(null);
+  const [requestLog, setRequestLog]     = useState([]);
+  const [isTrafficRunning, setRunning]  = useState(false);
+  const [trafficConfig, setConfig]      = useState({ rate:20, complexity:50, failRate:0 });
+
+  const trafficRef   = useRef(null);
   const prevCountRef = useRef(0);
-  const lastTimestampRef = useRef(Date.now());
- 
+  const lastTsRef    = useRef(Date.now());
+
+  // ── Metrics polling ──────────────────────────────────────────────────
   const fetchMetrics = useCallback(async () => {
     try {
       const res = await fetch(`${PROXY}/proxy/metrics`);
@@ -24,76 +50,109 @@ export function useMetrics() {
       const data = await res.json();
       setMetrics(data);
       setError(null);
-      setHistory((prev) => {
-        const now = new Date();
+
+      setHistory(prev => {
+        const now   = new Date();
         const label = `${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`;
-        const elapsed = (Date.now() - lastTimestampRef.current) / 1000;
-        lastTimestampRef.current = Date.now();
-        const delta = data.totalRequests - prevCountRef.current;
+        const elapsed = (Date.now() - lastTsRef.current) / 1000;
+        lastTsRef.current = Date.now();
+        // FIX: if proxy restarted totalRequests resets — avoid negative delta
+        const delta = data.totalRequests >= prevCountRef.current
+          ? data.totalRequests - prevCountRef.current : data.totalRequests;
         prevCountRef.current = data.totalRequests;
-        const rps = elapsed > 0 ? Math.round(delta / elapsed) : 0;
-        const labels = [...prev.labels, label].slice(-HISTORY_MAX);
-        const p95 = [...prev.p95, data.overallP95 || 0].slice(-HISTORY_MAX);
-        const p99 = [...prev.p99, data.overallP99 || 0].slice(-HISTORY_MAX);
-        const rpsArr = [...prev.rps, rps].slice(-HISTORY_MAX);
-        const servers = { ...prev.servers };
-        data.servers.forEach((s) => { if (!servers[s.id]) servers[s.id] = []; servers[s.id] = [...servers[s.id], s.requestCount].slice(-HISTORY_MAX); });
-        return { labels, p95, p99, rps: rpsArr, servers };
+        const rps = elapsed > 0 ? Math.max(0, Math.round(delta / elapsed)) : 0;
+
+        const next = {
+          labels:  [...prev.labels, label].slice(-HISTORY_MAX),
+          p95:     [...prev.p95,    data.overallP95||0].slice(-HISTORY_MAX),
+          p99:     [...prev.p99,    data.overallP99||0].slice(-HISTORY_MAX),
+          rps:     [...prev.rps,    rps].slice(-HISTORY_MAX),
+          servers: { ...prev.servers },
+        };
+        data.servers.forEach(s => {
+          if (!next.servers[s.id]) next.servers[s.id] = [];
+          next.servers[s.id] = [...next.servers[s.id], s.requestCount].slice(-HISTORY_MAX);
+        });
+        setTimeout(() => saveHistory(next), 0);
+        return next;
       });
-    } catch (err) { setError(err.message); }
+    } catch (e) {
+      setError(e.message.includes("Failed to fetch")
+        ? "Cannot reach proxy — is it running on :4000?"
+        : e.message);
+    }
   }, []);
- 
+
+  // ── Log polling ──────────────────────────────────────────────────────
+  const fetchLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${PROXY}/proxy/log?n=20`);
+      const data = await res.json();
+      setRequestLog(data.entries || []);
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    fetchMetrics();
-    const id = setInterval(fetchMetrics, POLL_INTERVAL);
-    return () => clearInterval(id);
-  }, [fetchMetrics]);
- 
+    fetchMetrics(); fetchLog();
+    const m = setInterval(fetchMetrics, POLL_MS);
+    const l = setInterval(fetchLog, 2000);
+    return () => { clearInterval(m); clearInterval(l); };
+  }, [fetchMetrics, fetchLog]);
+
+  // ── Traffic generator ────────────────────────────────────────────────
   const sendRequest = useCallback(async () => {
     const { complexity, failRate } = trafficConfig;
     try { await fetch(`${PROXY}/proxy/task?complexity=${complexity}&failRate=${failRate}`); } catch {}
   }, [trafficConfig]);
- 
+
   const startTraffic = useCallback(() => {
     if (trafficRef.current) return;
-    const intervalMs = Math.max(50, Math.round(1000 / trafficConfig.rate));
-    trafficRef.current = setInterval(sendRequest, intervalMs);
-    setIsTrafficRunning(true);
+    trafficRef.current = setInterval(sendRequest, Math.max(50, Math.round(1000/trafficConfig.rate)));
+    setRunning(true);
   }, [trafficConfig, sendRequest]);
- 
+
   const stopTraffic = useCallback(() => {
-    if (trafficRef.current) { clearInterval(trafficRef.current); trafficRef.current = null; }
-    setIsTrafficRunning(false);
+    if (trafficRef.current) { clearInterval(trafficRef.current); trafficRef.current=null; }
+    setRunning(false);
   }, []);
- 
-  const updateTrafficConfig = useCallback((updates) => {
-    setTrafficConfig((prev) => {
+
+  const updateTrafficConfig = useCallback(updates => {
+    setConfig(prev => {
       const next = { ...prev, ...updates };
-      if (isTrafficRunning) {
-        if (trafficRef.current) clearInterval(trafficRef.current);
-        const intervalMs = Math.max(50, Math.round(1000 / next.rate));
-        trafficRef.current = setInterval(sendRequest, intervalMs);
+      if (trafficRef.current) {
+        clearInterval(trafficRef.current);
+        trafficRef.current = setInterval(sendRequest, Math.max(50, Math.round(1000/next.rate)));
       }
       return next;
     });
-  }, [isTrafficRunning, sendRequest]);
- 
-  const setAlgorithm = useCallback(async (algorithm) => {
-    await fetch(`${PROXY}/proxy/algorithm`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ algorithm }) });
+  }, [sendRequest]);
+
+  // ── Control actions ──────────────────────────────────────────────────
+  const setAlgorithm = useCallback(async algo => {
+    await fetch(`${PROXY}/proxy/algorithm`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({algorithm:algo})});
     fetchMetrics();
   }, [fetchMetrics]);
- 
+
   const resetMetrics = useCallback(async () => {
-    await fetch(`${PROXY}/proxy/reset`, { method: "POST" });
-    setHistory(initHistory());
+    await fetch(`${PROXY}/proxy/reset`,{method:"POST"});
+    const fresh = initHistory();
+    setHistory(fresh); saveHistory(fresh);
     prevCountRef.current = 0;
+    setRequestLog([]);
     fetchMetrics();
   }, [fetchMetrics]);
- 
-  const toggleServer = useCallback(async (port) => {
-    await fetch(`${PROXY}/proxy/toggle/${port}`, { method: "POST" });
+
+  const toggleServer = useCallback(async port => {
+    await fetch(`${PROXY}/proxy/toggle/${port}`,{method:"POST"});
     fetchMetrics();
   }, [fetchMetrics]);
- 
-  return { metrics, history, error, isTrafficRunning, trafficConfig, startTraffic, stopTraffic, updateTrafficConfig, setAlgorithm, resetMetrics, toggleServer };
+
+  const setWeight = useCallback(async (id, weight) => {
+    await fetch(`${PROXY}/proxy/weight/${id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({weight})});
+    fetchMetrics();
+  }, [fetchMetrics]);
+
+  return { metrics, history, error, requestLog, isTrafficRunning, trafficConfig,
+           startTraffic, stopTraffic, updateTrafficConfig,
+           setAlgorithm, resetMetrics, toggleServer, setWeight };
 }
