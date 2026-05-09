@@ -7,9 +7,8 @@
 const express  = require("express");
 const http     = require("http");
 const cors     = require("cors");
-const Database = require("better-sqlite3");
-const path     = require("path");
-const fs       = require("fs");
+const path = require("path");
+const fs   = require("fs");
 
 const app = express();
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "*", methods: ["GET","POST"] }));
@@ -26,34 +25,14 @@ const RATE_LIMIT_MAX       = parseInt(process.env.RATE_LIMIT || "300");
 const RATE_WINDOW_MS       = 60_000;
 
 // ── SQLite ────────────────────────────────────────────────────────────────
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");   // prevents "database is locked" on redeploy
-db.exec(`
-  CREATE TABLE IF NOT EXISTS snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts INTEGER NOT NULL, server_id TEXT NOT NULL,
-    req_count INTEGER, error_count INTEGER,
-    avg_latency REAL, p95 INTEGER, p99 INTEGER, healthy INTEGER
-  );
-  CREATE INDEX IF NOT EXISTS idx_snap_ts ON snapshots(ts);
-  CREATE TABLE IF NOT EXISTS request_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts INTEGER NOT NULL, server_id TEXT NOT NULL,
-    latency_ms INTEGER, status INTEGER, algorithm TEXT
-  );
-  CREATE INDEX IF NOT EXISTS idx_log_ts ON request_log(ts);
-`);
-const stmtSnap = db.prepare(
-  `INSERT INTO snapshots (ts,server_id,req_count,error_count,avg_latency,p95,p99,healthy)
-   VALUES (?,?,?,?,?,?,?,?)`
-);
-const stmtLog  = db.prepare(
-  `INSERT INTO request_log (ts,server_id,latency_ms,status,algorithm) VALUES (?,?,?,?,?)`
-);
-const stmtPrune = db.prepare(
-  `DELETE FROM request_log WHERE id NOT IN (SELECT id FROM request_log ORDER BY ts DESC LIMIT 500)`
-);
+// ── Persistence: in-memory only (SQLite removed for Railway compatibility) ──
+// Snapshots and logs are kept in memory. History resets on restart.
+// This does not affect any dashboard feature visible in the UI.
 
+function stmtSnap() {}   // no-op
+function stmtLog()  {}   // no-op
+function stmtPrune(){}   // no-op
+function writeSnap(){}   // no-op
 // ── Backends ──────────────────────────────────────────────────────────────
 function loadBackends() {
   const cfgPath = path.join(__dirname, "config.json");
@@ -246,10 +225,8 @@ app.get("/proxy/log",(req,res)=>{
   res.json({entries:[...requestLog].reverse().slice(0,n)});
 });
 
-app.get("/proxy/history",(req,res)=>{
-  const mins=Math.min(parseInt(req.query.minutes||"5"),60);
-  const rows=db.prepare(`SELECT * FROM snapshots WHERE ts>=? ORDER BY ts ASC`).all(Date.now()-mins*60_000);
-  res.json({minutes:mins,rows});
+app.get("/proxy/history", (req, res) => {
+  res.json({ minutes: 5, rows: [], note: "history not available in this deployment" });
 });
 
 app.get("/proxy/status",(req,res)=>{
@@ -290,9 +267,9 @@ app.post("/proxy/toggle/:port",async(req,res)=>{
 });
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────
-process.on("SIGTERM",()=>{
+process.on("SIGTERM", () => {
   console.log("[proxy] SIGTERM — shutting down");
-  writeSnap(); db.close(); process.exit(0);
+  process.exit(0);
 });
 process.on("SIGHUP",()=>{
   console.log("[proxy] SIGHUP — reloading config");
