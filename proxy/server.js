@@ -15,9 +15,7 @@ app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "*", methods: ["GET","POST"
 app.use(express.json());
 
 const PROXY_PORT           = parseInt(process.env.PROXY_PORT           || "4000");
-const DB_PATH              = process.env.DB_PATH                       || path.join(__dirname, "metrics.db");
 const HEALTH_INTERVAL_MS   = parseInt(process.env.HEALTH_INTERVAL_MS   || "3000");
-const SNAPSHOT_INTERVAL_MS = parseInt(process.env.SNAPSHOT_INTERVAL_MS || "5000");
 const UNHEALTHY_THRESHOLD  = 2;
 const HALF_OPEN_AFTER_MS   = 10_000;
 const REQUEST_LOG_MAX      = 50;
@@ -151,16 +149,8 @@ setInterval(()=>Object.values(state).forEach(checkHealth), HEALTH_INTERVAL_MS);
 Object.values(state).forEach(checkHealth);
 
 // ── Snapshot writer ───────────────────────────────────────────────────────
-function writeSnap() {
-  const ts=Date.now();
-  const tx=db.transaction(()=>{
-    Object.values(state).forEach(s=>stmtSnap.run(ts,s.id,s.requestCount,s.errorCount,
-      Math.round(avgLat(s)),percentile(s.latencyWindow,95),percentile(s.latencyWindow,99),
-      s.cbState==="CLOSED"?1:0));
-  });
-  tx();
-}
-setInterval(writeSnap, SNAPSHOT_INTERVAL_MS);
+function writeSnap() {}
+
 
 // ── Rate limiter ──────────────────────────────────────────────────────────
 const rlMap = new Map();
