@@ -269,5 +269,5 @@ process.on("SIGHUP",()=>{
 // ── Start ─────────────────────────────────────────────────────────────────
 app.listen(PROXY_PORT,()=>{
   console.log(`[proxy v2] http://localhost:${PROXY_PORT}`);
-  console.log(`  DB: ${DB_PATH}  |  Rate: ${RATE_LIMIT_MAX}/min`);
+  console.log(`  Rate limit: ${RATE_LIMIT_MAX}/min`);
 });
