@@ -39,9 +39,9 @@ function loadBackends() {
     catch(e) { console.error("[proxy] config.json error:", e.message); }
   }
   return [
-    { id:"backend-3001", url:"https://load-backend-1-w5i2.onrender.com/", port:3001, weight:1 },
-    { id:"backend-3002", url:"https://load-backend-2-6fn8.onrender.com/", port:3002, weight:1 },
-    { id:"backend-3003", url:"https://load-backend-3.onrender.com/", port:3003, weight:1 },
+    { id:"backend-3001", url:"https://load-backend-1-w5i2.onrender.com", port:3001, weight:1 },
+    { id:"backend-3002", url:"https://load-backend-2-6fn8.onrender.com", port:3002, weight:1 },
+    { id:"backend-3003", url:"https://load-backend-3.onrender.com", port:3003, weight:1 },
   ];
 }
 
