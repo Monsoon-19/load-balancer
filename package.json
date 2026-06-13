@@ -4,15 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n B1,B2,B3,PX,FE -c cyan,cyan,cyan,green,magenta \"npm run backend:1\" \"npm run backend:2\" \"npm run backend:3\" \"npm run proxy\" \"npm run frontend\"",
-    "backend:1": "cd backend && PORT=3001 node server.js",
-    "backend:2": "cd backend && PORT=3002 node server.js",
-    "backend:3": "cd backend && PORT=3003 node server.js",
-    "proxy":     "cd proxy && node server.js",
-    "frontend":  "cd frontend && npm run dev",
-    "test":      "cd proxy && node --test balancer.test.js",
+    "backend:1": "cd backend && cross-env PORT=3001 node server.js",
+    "backend:2": "cd backend && cross-env PORT=3002 node server.js",
+    "backend:3": "cd backend && cross-env PORT=3003 node server.js",
+    "proxy": "cd proxy && node server.js",
+    "frontend": "cd frontend && npm run dev",
+    "test": "cd proxy && node --test balancer.test.js",
     "install:all": "npm i && cd backend && npm i && cd ../proxy && npm i && cd ../frontend && npm i && cd ../traffic-gen && npm i"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0"
   }
 }
